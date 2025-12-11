@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Blake3 Benchmark: JS vs Rust WASM</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 13px;
+      background: #fff;
+      color: #000;
+      padding: 10px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h1 {
+      background: #000066;
+      color: #fff;
+      padding: 8px 12px;
+      margin: 0 0 2px 0;
+      font-size: 18px;
+      font-weight: bold;
+    }
+    h2 {
+      background: #dddddd;
+      color: #000;
+      padding: 6px 12px;
+      margin: 0 0 10px 0;
+      font-size: 12px;
+      font-weight: normal;
+    }
+    .status {
+      padding: 6px 10px;
+      margin: 8px 0;
+      border: 1px solid #000;
+      font-size: 12px;
+    }
+    .status.ok { background: #cfc; border-color: #080; }
+    .status.warn { background: #ffc; border-color: #880; }
+    .status.err { background: #fcc; border-color: #800; }
+    button {
+      background: #f0f0f0;
+      color: #000;
+      border: 1px solid #666;
+      padding: 4px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      margin: 2px;
+    }
+    button:hover { background: #e0e0e0; }
+    button:disabled { background: #ccc; color: #666; cursor: default; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0;
+      border: 1px solid #000;
+    }
+    th {
+      background: #000066;
+      color: #fff;
+      padding: 6px 10px;
+      text-align: right;
+      font-weight: bold;
+      border: 1px solid #000;
+    }
+    td {
+      padding: 6px 10px;
+      text-align: right;
+      border: 1px solid #999;
+      background: #f8f8f8;
+    }
+    tr:nth-child(even) td { background: #fff; }
+    th:first-child, td:first-child { text-align: left; }
+    .best { color: #006600; font-weight: bold; }
+    pre {
+      background: #f0f0f0;
+      border: 1px solid #999;
+      padding: 10px;
+      overflow-x: auto;
+      font-family: monospace;
+      font-size: 11px;
+      margin: 10px 0;
+    }
+    .controls {
+      background: #f3f3f3;
+      border: 1px solid #ccc;
+      padding: 8px;
+      margin: 10px 0;
+    }
+    select {
+      border: 1px solid #666;
+      padding: 2px 4px;
+      font-size: 12px;
+    }
+    label { margin-right: 15px; }
+    .links { background: #f3f3f3; border: 1px solid #ccc; padding: 8px; margin: 10px 0; font-size: 12px; }
+    .links a { color: #000066; margin-right: 15px; }
+  </style>
+</head>
+<body>
+  <h1>Blake3 Benchmark</h1>
+  <h2>Noble-hashes vs Optimized JS vs Rust WASM vs Rust WASM + Rayon</h2>
+  <div class="links">
+    <a href="https://github.com/rotkonetworks/blake3-js">GitHub</a>
+    <a href="https://www.npmjs.com/package/@aspect/blake3js">npm: @aspect/blake3js</a>
+    <a href="https://crates.io/crates/blake3">Rust: blake3 crate</a>
+  </div>
+
+  <div id="status" class="status">Initializing...</div>
+
+  <div class="controls">
+    <label>Data size:
+      <select id="size-select">
+        <option value="1024">1 KB</option>
+        <option value="16384">16 KB</option>
+        <option value="65536" selected>64 KB</option>
+        <option value="262144">256 KB</option>
+        <option value="1048576">1 MB</option>
+        <option value="4194304">4 MB</option>
+        <option value="16777216">16 MB</option>
+      </select>
+    </label>
+    <label>Threads:
+      <select id="thread-select">
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="4" selected>4</option>
+        <option value="8">8</option>
+        <option value="16">16</option>
+      </select>
+    </label>
+  </div>
+  <div class="controls">
+    <button id="bench-noble" disabled>Benchmark Noble</button>
+    <button id="bench-js" disabled>Benchmark Optimized JS</button>
+    <button id="bench-wasm" disabled>Benchmark WASM</button>
+    <button id="bench-rayon" disabled>Benchmark WASM+Rayon</button>
+    <button id="bench-all" disabled>Run All</button>
+    <button id="verify-btn" disabled>Verify Correctness</button>
+  </div>
+
+  <table id="results">
+    <thead>
+      <tr>
+        <th>Implementation</th>
+        <th>Throughput</th>
+        <th>Time (ms)</th>
+        <th>Iterations</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td colspan="4">Click "Run Benchmark" to start</td></tr>
+    </tbody>
+  </table>
+
+  <pre id="log"></pre>
+
+<script type="module">
+// ========== NOBLE-HASHES BLAKE3 ==========
+import { blake3 as nobleBlake3 } from 'https://esm.sh/@noble/hashes@1.6.1/blake3';
+
+// ========== OPTIMIZED JS BLAKE3 ==========
+const IV = new Uint32Array([
+  0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+  0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+]);
+const BLOCK_LEN = 64, CHUNK_LEN = 1024;
+const CHUNK_START = 1, CHUNK_END = 2, PARENT = 4, ROOT = 8;
+const IS_LE = new Uint8Array(new Uint32Array([1]).buffer)[0] === 1;
+const blockBuf = new Uint32Array(16);
+
+function compress(cv, m, counter, blockLen, flags) {
+  let s0=cv[0]|0,s1=cv[1]|0,s2=cv[2]|0,s3=cv[3]|0,s4=cv[4]|0,s5=cv[5]|0,s6=cv[6]|0,s7=cv[7]|0;
+  let s8=0x6a09e667,s9=0xbb67ae85,s10=0x3c6ef372,s11=0xa54ff53a;
+  let s12=counter|0,s13=(counter/0x100000000)|0,s14=blockLen|0,s15=flags|0;
+  let m0=m[0]|0,m1=m[1]|0,m2=m[2]|0,m3=m[3]|0,m4=m[4]|0,m5=m[5]|0,m6=m[6]|0,m7=m[7]|0;
+  let m8=m[8]|0,m9=m[9]|0,m10=m[10]|0,m11=m[11]|0,m12=m[12]|0,m13=m[13]|0,m14=m[14]|0,m15=m[15]|0;
+  for(let i=0;i<7;++i){
+    s0=(((s0+s4)|0)+m0)|0;s12^=s0;s12=(s12>>>16)|(s12<<16);s8=(s8+s12)|0;s4^=s8;s4=(s4>>>12)|(s4<<20);
+    s0=(((s0+s4)|0)+m1)|0;s12^=s0;s12=(s12>>>8)|(s12<<24);s8=(s8+s12)|0;s4^=s8;s4=(s4>>>7)|(s4<<25);
+    s1=(((s1+s5)|0)+m2)|0;s13^=s1;s13=(s13>>>16)|(s13<<16);s9=(s9+s13)|0;s5^=s9;s5=(s5>>>12)|(s5<<20);
+    s1=(((s1+s5)|0)+m3)|0;s13^=s1;s13=(s13>>>8)|(s13<<24);s9=(s9+s13)|0;s5^=s9;s5=(s5>>>7)|(s5<<25);
+    s2=(((s2+s6)|0)+m4)|0;s14^=s2;s14=(s14>>>16)|(s14<<16);s10=(s10+s14)|0;s6^=s10;s6=(s6>>>12)|(s6<<20);
+    s2=(((s2+s6)|0)+m5)|0;s14^=s2;s14=(s14>>>8)|(s14<<24);s10=(s10+s14)|0;s6^=s10;s6=(s6>>>7)|(s6<<25);
+    s3=(((s3+s7)|0)+m6)|0;s15^=s3;s15=(s15>>>16)|(s15<<16);s11=(s11+s15)|0;s7^=s11;s7=(s7>>>12)|(s7<<20);
+    s3=(((s3+s7)|0)+m7)|0;s15^=s3;s15=(s15>>>8)|(s15<<24);s11=(s11+s15)|0;s7^=s11;s7=(s7>>>7)|(s7<<25);
+    s0=(((s0+s5)|0)+m8)|0;s15^=s0;s15=(s15>>>16)|(s15<<16);s10=(s10+s15)|0;s5^=s10;s5=(s5>>>12)|(s5<<20);
+    s0=(((s0+s5)|0)+m9)|0;s15^=s0;s15=(s15>>>8)|(s15<<24);s10=(s10+s15)|0;s5^=s10;s5=(s5>>>7)|(s5<<25);
+    s1=(((s1+s6)|0)+m10)|0;s12^=s1;s12=(s12>>>16)|(s12<<16);s11=(s11+s12)|0;s6^=s11;s6=(s6>>>12)|(s6<<20);
+    s1=(((s1+s6)|0)+m11)|0;s12^=s1;s12=(s12>>>8)|(s12<<24);s11=(s11+s12)|0;s6^=s11;s6=(s6>>>7)|(s6<<25);
+    s2=(((s2+s7)|0)+m12)|0;s13^=s2;s13=(s13>>>16)|(s13<<16);s8=(s8+s13)|0;s7^=s8;s7=(s7>>>12)|(s7<<20);
+    s2=(((s2+s7)|0)+m13)|0;s13^=s2;s13=(s13>>>8)|(s13<<24);s8=(s8+s13)|0;s7^=s8;s7=(s7>>>7)|(s7<<25);
+    s3=(((s3+s4)|0)+m14)|0;s14^=s3;s14=(s14>>>16)|(s14<<16);s9=(s9+s14)|0;s4^=s9;s4=(s4>>>12)|(s4<<20);
+    s3=(((s3+s4)|0)+m15)|0;s14^=s3;s14=(s14>>>8)|(s14<<24);s9=(s9+s14)|0;s4^=s9;s4=(s4>>>7)|(s4<<25);
+    if(i<6){const t0=m0,t1=m1;m0=m2;m2=m3;m3=m10;m10=m12;m12=m9;m9=m11;m11=m5;m5=t0;m1=m6;m6=m4;m4=m7;m7=m13;m13=m14;m14=m15;m15=m8;m8=t1;}
+  }
+  return new Uint32Array([s0^s8,s1^s9,s2^s10,s3^s11,s4^s12,s5^s13,s6^s14,s7^s15]);
+}
+function readBlock(input,offset,length,out){out.fill(0);const end=Math.min(offset+length,input.length);let wi=0,i=offset;while(i+4<=end){out[wi++]=input[i]|(input[i+1]<<8)|(input[i+2]<<16)|(input[i+3]<<24);i+=4;}if(i<end){let word=0,shift=0;while(i<end){word|=input[i++]<<shift;shift+=8;}out[wi]=word;}}
+function readBlockLE(input,offset,out){const abs=input.byteOffset+offset;if(IS_LE&&(abs&3)===0&&offset+64<=input.length){out.set(new Uint32Array(input.buffer,abs,16));return true;}return false;}
+function cvToBytes(cv,len){const r=new Uint8Array(len);for(let i=0;i<Math.min(8,Math.ceil(len/4));i++){const w=cv[i],b=i*4;if(b<len)r[b]=w&0xff;if(b+1<len)r[b+1]=(w>>8)&0xff;if(b+2<len)r[b+2]=(w>>16)&0xff;if(b+3<len)r[b+3]=(w>>24)&0xff;}return r;}
+function processChunk(input,start,len,counter,flags){const cv=new Uint32Array(IV);let pos=0,blocks=Math.ceil(len/BLOCK_LEN)||1;while(blocks>0){const bLen=Math.min(BLOCK_LEN,len-pos);let bf=flags;if(pos===0)bf|=CHUNK_START;if(blocks===1)bf|=CHUNK_END;if(bLen===BLOCK_LEN&&readBlockLE(input,start+pos,blockBuf)){}else{readBlock(input,start+pos,bLen,blockBuf);}cv.set(compress(cv,blockBuf,counter,bLen,bf));pos+=BLOCK_LEN;blocks--;}return cv;}
+function mergeParents(l,r,flags,isRoot){const b=new Uint32Array(16);b.set(l,0);b.set(r,8);return compress(IV,b,0,BLOCK_LEN,flags|PARENT|(isRoot?ROOT:0));}
+function hashJS(input,outLen=32){const flags=0;if(input.length<=CHUNK_LEN){const cv=new Uint32Array(IV);let pos=0,blocks=Math.ceil(input.length/BLOCK_LEN)||1;while(blocks>0){const bLen=Math.min(BLOCK_LEN,input.length-pos);let bf=flags;if(pos===0)bf|=CHUNK_START;if(blocks===1)bf|=CHUNK_END|ROOT;if(bLen===BLOCK_LEN&&readBlockLE(input,pos,blockBuf)){}else{readBlock(input,pos,bLen,blockBuf);}cv.set(compress(cv,blockBuf,0,bLen,bf));pos+=BLOCK_LEN;blocks--;}return cvToBytes(cv,outLen);}
+  const numChunks=Math.ceil(input.length/CHUNK_LEN);const cvStack=[];for(let c=0;c<numChunks;c++){const start=c*CHUNK_LEN,len=Math.min(CHUNK_LEN,input.length-start);cvStack.push(processChunk(input,start,len,c,flags));if(c<numChunks-1){let t=c+1;while((t&1)===0&&cvStack.length>=2){const r=cvStack.pop(),l=cvStack.pop();cvStack.push(mergeParents(l,r,flags,false));t>>=1;}}}
+  while(cvStack.length>1){const r=cvStack.pop(),l=cvStack.pop();cvStack.push(mergeParents(l,r,flags,cvStack.length===0));}return cvToBytes(cvStack[0],outLen);}
+
+// ========== WASM MODULE ==========
+let wasm = null;
+let wasmThreads = 0;
+
+const statusEl = document.getElementById('status');
+const logEl = document.getElementById('log');
+const benchNobleBtn = document.getElementById('bench-noble');
+const benchJsBtn = document.getElementById('bench-js');
+const benchWasmBtn = document.getElementById('bench-wasm');
+const benchRayonBtn = document.getElementById('bench-rayon');
+const benchAllBtn = document.getElementById('bench-all');
+const verifyBtn = document.getElementById('verify-btn');
+
+function log(msg) {
+  logEl.textContent += msg + '\n';
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function setStatus(msg, type = 'ok') {
+  statusEl.textContent = msg;
+  statusEl.className = 'status ' + type;
+}
+
+function toHex(arr) {
+  return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Check for SharedArrayBuffer support (required for threading)
+const hasSharedArrayBuffer = typeof SharedArrayBuffer !== 'undefined';
+const maxCores = navigator.hardwareConcurrency || 4;
+const threadSelect = document.getElementById('thread-select');
+
+// Populate thread selector with available cores
+threadSelect.innerHTML = '';
+for (let i = 1; i <= maxCores; i++) {
+  const opt = document.createElement('option');
+  opt.value = i;
+  opt.textContent = i;
+  if (i === maxCores) opt.selected = true;
+  threadSelect.appendChild(opt);
+}
+
+async function init() {
+  log('Initializing Blake3 benchmark...');
+  log(`CPU cores: ${maxCores}`);
+  log(`SharedArrayBuffer: ${hasSharedArrayBuffer ? 'YES' : 'NO'}`);
+
+  if (!hasSharedArrayBuffer) {
+    setStatus('SharedArrayBuffer not available - need COOP/COEP headers for multi-threading', 'warn');
+    log('WARNING: Multi-threaded WASM requires special HTTP headers.');
+    log('Run with: python serve.py');
+  }
+
+  try {
+    const module = await import('./blake3_wasm.js');
+    await module.default();
+    wasm = module;
+    log('WASM module loaded');
+
+    if (hasSharedArrayBuffer) {
+      const threads = parseInt(threadSelect.value);
+      try {
+        await wasm.initThreadPool(threads);
+        wasmThreads = wasm.get_thread_count();
+        log(`Rayon thread pool: ${wasmThreads} threads`);
+        // Disable selector - can't resize after init
+        threadSelect.disabled = true;
+        threadSelect.title = 'Thread pool cannot be resized. Reload page to change.';
+      } catch (e) {
+        log(`Thread pool init failed: ${e.message}`);
+        wasmThreads = 0;
+      }
+    }
+
+    setStatus(`Ready (WASM loaded, ${wasmThreads} threads)`, 'ok');
+    benchNobleBtn.disabled = false;
+    benchJsBtn.disabled = false;
+    benchWasmBtn.disabled = false;
+    benchRayonBtn.disabled = wasmThreads === 0;
+    benchAllBtn.disabled = false;
+    verifyBtn.disabled = false;
+  } catch (e) {
+    setStatus('Failed to load WASM: ' + e.message, 'err');
+    log('Error: ' + e.stack);
+  }
+}
+
+function generateData(size) {
+  const data = new Uint8Array(size);
+  for (let i = 0; i < size; i++) data[i] = i % 251;
+  return data;
+}
+
+function getSize() {
+  return parseInt(document.getElementById('size-select').value);
+}
+
+function getIterations(size) {
+  return size < 100000 ? 500 : size < 1000000 ? 50 : 10;
+}
+
+let results = {};
+
+function updateTable() {
+  const tbody = document.querySelector('#results tbody');
+  const rows = [];
+  const all = Object.values(results).filter(r => !r.disabled);
+  const best = all.length ? all.sort((a, b) => b.throughput - a.throughput)[0] : null;
+
+  for (const r of Object.values(results)) {
+    rows.push(`
+      <tr>
+        <td>${r.name}</td>
+        <td class="${r === best ? 'best' : ''}">${r.disabled ? 'N/A' : r.throughput.toFixed(1) + ' MB/s'}</td>
+        <td>${r.disabled ? 'N/A' : r.time.toFixed(1)}</td>
+        <td>${r.disabled ? 'N/A' : r.iterations}</td>
+      </tr>
+    `);
+  }
+  tbody.innerHTML = rows.join('') || '<tr><td colspan="4">Click a benchmark button to start</td></tr>';
+}
+
+function benchmarkNoble() {
+  const size = getSize();
+  const data = generateData(size);
+  const iterations = getIterations(size);
+
+  log(`Benchmarking Noble-hashes (${(size/1024).toFixed(1)} KB)...`);
+
+  for (let i = 0; i < 5; i++) nobleBlake3(data);
+  const start = performance.now();
+  for (let i = 0; i < iterations; i++) nobleBlake3(data);
+  const elapsed = performance.now() - start;
+  const throughput = (size * iterations) / (elapsed / 1000) / (1024 * 1024);
+
+  results['noble'] = { name: 'Noble-hashes', throughput, time: elapsed, iterations };
+  log(`Noble-hashes: ${throughput.toFixed(1)} MB/s`);
+  updateTable();
+}
+
+function benchmarkJS() {
+  const size = getSize();
+  const data = generateData(size);
+  const iterations = getIterations(size);
+
+  log(`Benchmarking Optimized JS (${(size/1024).toFixed(1)} KB)...`);
+
+  for (let i = 0; i < 5; i++) hashJS(data);
+  const start = performance.now();
+  for (let i = 0; i < iterations; i++) hashJS(data);
+  const elapsed = performance.now() - start;
+  const throughput = (size * iterations) / (elapsed / 1000) / (1024 * 1024);
+
+  results['js'] = { name: 'Optimized JS', throughput, time: elapsed, iterations };
+  log(`Optimized JS: ${throughput.toFixed(1)} MB/s`);
+  updateTable();
+}
+
+function benchmarkWASM() {
+  const size = getSize();
+  const data = generateData(size);
+  const iterations = getIterations(size);
+
+  log(`Benchmarking Rust WASM (${(size/1024).toFixed(1)} KB)...`);
+
+  for (let i = 0; i < 5; i++) wasm.hash(data);
+  const start = performance.now();
+  for (let i = 0; i < iterations; i++) wasm.hash(data);
+  const elapsed = performance.now() - start;
+  const throughput = (size * iterations) / (elapsed / 1000) / (1024 * 1024);
+
+  results['wasm'] = { name: 'Rust WASM', throughput, time: elapsed, iterations };
+  log(`Rust WASM: ${throughput.toFixed(1)} MB/s`);
+  updateTable();
+}
+
+function benchmarkRayon() {
+  if (wasmThreads === 0) {
+    log('WASM+Rayon: N/A (no SharedArrayBuffer)');
+    results['rayon'] = { name: 'Rust WASM + Rayon', throughput: 0, time: 0, iterations: 0, disabled: true };
+    updateTable();
+    return;
+  }
+
+  const size = getSize();
+  const data = generateData(size);
+  const iterations = getIterations(size);
+
+  log(`Benchmarking Rust WASM + Rayon ${wasmThreads}t (${(size/1024).toFixed(1)} KB)...`);
+
+  for (let i = 0; i < 5; i++) wasm.hash_rayon(data);
+  const start = performance.now();
+  for (let i = 0; i < iterations; i++) wasm.hash_rayon(data);
+  const elapsed = performance.now() - start;
+  const throughput = (size * iterations) / (elapsed / 1000) / (1024 * 1024);
+
+  results['rayon'] = { name: `Rust WASM + Rayon (${wasmThreads}t)`, throughput, time: elapsed, iterations };
+  log(`Rust WASM + Rayon: ${throughput.toFixed(1)} MB/s`);
+  updateTable();
+}
+
+function runVerify() {
+  logEl.textContent = '';
+  log('Verifying correctness...\n');
+
+  const expected = {
+    0: 'af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262',
+    1: '2d3adedff11b61f14c886e35afa036736dcd87a74d27b5c1510225d0f592e213',
+    1024: '42214739f095a406f3fc83deb889744ac00df831c10daa55189b5d121c855af7',
+    1025: 'd00278ae47eb27b34faecf67b4fe263f82d5412916c1ffd97c8cb7fb814b8444',
+  };
+
+  for (const [len, exp] of Object.entries(expected)) {
+    const data = generateData(parseInt(len));
+
+    const nobleResult = toHex(nobleBlake3(data));
+    const jsResult = toHex(hashJS(data));
+    const wasmResult = toHex(wasm.hash(data));
+    const wasmRayonResult = wasmThreads > 0 ? toHex(wasm.hash_rayon(data)) : 'N/A';
+
+    const nobleOk = nobleResult === exp;
+    const jsOk = jsResult === exp;
+    const wasmOk = wasmResult === exp;
+    const rayonOk = wasmRayonResult === exp || wasmRayonResult === 'N/A';
+
+    log(`len=${len}:`);
+    log(`  Noble:      ${nobleOk ? 'OK' : 'FAIL'} ${nobleResult.slice(0, 16)}...`);
+    log(`  Optimized:  ${jsOk ? 'OK' : 'FAIL'} ${jsResult.slice(0, 16)}...`);
+    log(`  WASM:       ${wasmOk ? 'OK' : 'FAIL'} ${wasmResult.slice(0, 16)}...`);
+    log(`  WASM+Rayon: ${rayonOk ? 'OK' : 'FAIL'} ${wasmRayonResult.slice(0, 16)}...`);
+  }
+}
+
+function runAll() {
+  logEl.textContent = '';
+  results = {};
+  log(`Running all benchmarks...\n`);
+  benchmarkNoble();
+  benchmarkJS();
+  benchmarkWASM();
+  benchmarkRayon();
+
+  const all = Object.values(results).filter(r => !r.disabled);
+  if (all.length) {
+    const best = all.sort((a, b) => b.throughput - a.throughput)[0];
+    log(`\nBest: ${best.name} at ${best.throughput.toFixed(1)} MB/s`);
+  }
+}
+
+// Event listeners
+benchNobleBtn.addEventListener('click', () => { logEl.textContent = ''; benchmarkNoble(); });
+benchJsBtn.addEventListener('click', () => { logEl.textContent = ''; benchmarkJS(); });
+benchWasmBtn.addEventListener('click', () => { logEl.textContent = ''; benchmarkWASM(); });
+benchRayonBtn.addEventListener('click', () => { logEl.textContent = ''; benchmarkRayon(); });
+benchAllBtn.addEventListener('click', runAll);
+verifyBtn.addEventListener('click', runVerify);
+
+// Thread selector change - reload page to reinitialize with new count
+threadSelect.addEventListener('change', () => {
+  if (wasmThreads > 0) {
+    // Already initialized, need reload
+    location.reload();
+  }
+});
+
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+{
+  "name": "@aspect/blake3js",
+  "version": "1.0.0",
+  "description": "High-performance Blake3 hash for JavaScript - optimized pure JS implementation",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "test": "node --test test/",
+    "bench": "node bench/bench.js"
+  },
+  "keywords": [
+    "blake3",
+    "hash",
+    "crypto",
+    "cryptography",
+    "fast",
+    "optimized"
+  ],
+  "author": "Rotko Networks",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rotkonetworks/blake3-js"
+  },
+  "homepage": "https://blake3.rotko.net",
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
+  }
+}

@@ -1,0 +1,18 @@
+# Nginx config for Blake3 benchmark
+# Add to your server block or location block
+
+location /blake3/ {
+    alias /var/www/blake3/;
+
+    # Required for SharedArrayBuffer (WASM threading)
+    add_header Cross-Origin-Opener-Policy "same-origin" always;
+    add_header Cross-Origin-Embedder-Policy "require-corp" always;
+
+    # MIME types
+    types {
+        application/wasm wasm;
+        application/javascript js mjs;
+        text/html html;
+        text/css css;
+    }
+}

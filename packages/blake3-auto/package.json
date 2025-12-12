@@ -1,0 +1,38 @@
+{
+  "name": "@rotko/blake3-auto",
+  "version": "1.0.0",
+  "description": "High-performance Blake3 hash - auto-selects WASM+Rayon or pure JS",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "cp src/index.js dist/ && cp src/index.d.ts dist/"
+  },
+  "keywords": [
+    "blake3",
+    "hash",
+    "wasm",
+    "auto",
+    "fast"
+  ],
+  "author": "Rotko Networks",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rotkonetworks/blake3-js"
+  },
+  "homepage": "https://blake3.rotko.net",
+  "dependencies": {
+    "@rotko/blake3": "^1.0.0",
+    "@rotko/blake3-wasm": "^1.0.0"
+  }
+}

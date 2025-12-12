@@ -1,5 +1,5 @@
 {
-  "name": "@aspect/blake3js",
+  "name": "@rotko/blake3",
   "version": "1.0.0",
   "description": "High-performance Blake3 hash for JavaScript - optimized pure JS implementation",
   "type": "module",

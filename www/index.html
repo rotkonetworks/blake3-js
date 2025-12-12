@@ -95,12 +95,21 @@
     label { margin-right: 15px; }
     .links { background: #f3f3f3; border: 1px solid #ccc; padding: 8px; margin: 10px 0; font-size: 12px; }
     .links a { color: #000066; margin-right: 15px; }
+    .donate summary { cursor: pointer; font-size: 12px; padding: 6px 10px; background: #f3f3f3; border: 1px solid #ccc; }
+    .donate[open] summary { border-bottom: none; }
+    .donate-content { display: flex; justify-content: space-evenly; padding: 12px; border: 1px solid #ccc; border-top: none; background: #f9f9f9; }
+    .wallet { text-align: center; padding: 10px; border: 3px solid #000; background: #fff; }
+    .wallet img { display: block; margin: 0 auto 6px; }
+    .wallet .label { font-size: 11px; font-weight: bold; margin-bottom: 4px; }
+    .wallet .addr { font-family: monospace; font-size: 8px; word-break: break-all; max-width: 200px; text-align: left; cursor: pointer; padding: 4px; background: #f0f0f0; border: 1px solid #ccc; }
+    .wallet .addr:hover { background: #e0e0e0; }
   </style>
 </head>
 <body>
   <h1>Blake3 Benchmark</h1>
   <h2>Noble-hashes vs Optimized JS vs Rust WASM vs Rust WASM + Rayon</h2>
   <div class="links">
+    <a href="npm-example.html">npm usage</a>
     <a href="https://github.com/rotkonetworks/blake3-js">GitHub</a>
     <a href="https://www.npmjs.com/package/@rotko/blake3">@rotko/blake3</a>
     <a href="https://www.npmjs.com/package/@rotko/blake3-wasm">@rotko/blake3-wasm</a>
@@ -475,5 +484,21 @@ threadSelect.addEventListener('change', () => {
 
 init();
 </script>
+
+<details class="donate" id="donate">
+  <summary>Donate</summary>
+  <div class="donate-content">
+    <div class="wallet">
+      <div class="label">Penumbra</div>
+      <img src="penumbra-qr.png" alt="Penumbra QR">
+      <div class="addr" onclick="navigator.clipboard.writeText(this.dataset.addr);this.textContent='Copied!';setTimeout(()=>this.textContent=this.dataset.addr,1500)" data-addr="penumbra1v4pe2e0hvsqpnj2fjztaxam0qw08f23adv0m5vw834986g5wpf43ea8na8f8jelllqlzr9te6a3dwp72ywempdvqxvx6sy8q3v5p45gamd3ydyapshwg2y98qscfmfjdls2wa3">penumbra1v4pe2e0hvsqpnj2fjztaxam0qw08f23adv0m5vw834986g5wpf43ea8na8f8jelllqlzr9te6a3dwp72ywempdvqxvx6sy8q3v5p45gamd3ydyapshwg2y98qscfmfjdls2wa3</div>
+    </div>
+    <div class="wallet">
+      <div class="label">Zcash</div>
+      <img src="zcash-qr.png" alt="Zcash QR">
+      <div class="addr" onclick="navigator.clipboard.writeText(this.dataset.addr);this.textContent='Copied!';setTimeout(()=>this.textContent=this.dataset.addr,1500)" data-addr="u1m6x3tewkyqh9xmtnq765uc0kjtyvaamu4uv4ejgfrgxt38t5lhu5zsf698e8eqjzk8qnu0tyg5n3nenfy524rv9pdxjxxkm4vvqdar6vn48edk4hs5avgughx23xemv7tacnmmp0x3n28uknpf0rquuuf7l397l7s55u7pxqpgwl3yat">u1m6x3tewkyqh9xmtnq765uc0kjtyvaamu4uv4ejgfrgxt38t5lhu5zsf698e8eqjzk8qnu0tyg5n3nenfy524rv9pdxjxxkm4vvqdar6vn48edk4hs5avgughx23xemv7tacnmmp0x3n28uknpf0rquuuf7l397l7s55u7pxqpgwl3yat</div>
+    </div>
+  </div>
+</details>
 </body>
 </html>

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>@rotko/blake3 npm Usage Example</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; font-size: 13px; max-width: 800px; margin: 0 auto; padding: 10px; }
+    h1 { background: #000066; color: #fff; padding: 8px 12px; margin: 0 0 2px 0; font-size: 18px; }
+    h2 { background: #ddd; padding: 6px 12px; margin: 0 0 10px 0; font-size: 12px; font-weight: normal; }
+    pre { background: #f0f0f0; border: 1px solid #999; padding: 10px; overflow-x: auto; font-size: 11px; }
+    .output { background: #efe; border-color: #080; }
+    .links { background: #f3f3f3; border: 1px solid #ccc; padding: 8px; margin: 10px 0; font-size: 12px; }
+    .links a { color: #000066; margin-right: 15px; }
+    button { background: #f0f0f0; border: 1px solid #666; padding: 4px 12px; font-size: 12px; cursor: pointer; margin: 2px; }
+    button:hover { background: #e0e0e0; }
+  </style>
+</head>
+<body>
+  <h1>@rotko/blake3 Usage</h1>
+  <h2>Example of using the npm packages via esm.sh CDN</h2>
+  <div class="links">
+    <a href="index.html">Benchmark</a>
+    <a href="https://www.npmjs.com/package/@rotko/blake3">@rotko/blake3</a>
+    <a href="https://www.npmjs.com/package/@rotko/blake3-wasm">@rotko/blake3-wasm</a>
+    <a href="https://www.npmjs.com/package/@rotko/blake3-auto">@rotko/blake3-auto</a>
+  </div>
+
+  <h3>Installation</h3>
+  <pre>npm install @rotko/blake3        # Pure JS - works everywhere
+npm install @rotko/blake3-wasm   # WASM + Rayon - fastest, needs COOP/COEP headers
+npm install @rotko/blake3-auto   # Auto-selects best available</pre>
+
+  <h3>Pure JS (@rotko/blake3)</h3>
+  <pre>import { blake3 } from '@rotko/blake3';
+
+const data = new TextEncoder().encode('hello world');
+const hash = blake3(data);
+console.log(blake3.hex(data)); // hex string</pre>
+  <button id="run-js">Run Example</button>
+  <pre id="output-js" class="output">Click "Run Example" to see output</pre>
+
+  <h3>WASM + Rayon (@rotko/blake3-wasm)</h3>
+  <pre>import { init, blake3, blake3Parallel } from '@rotko/blake3-wasm';
+
+await init();  // or init(8) for 8 threads
+const hash = blake3(data);           // single-threaded WASM
+const hashPar = blake3Parallel(data); // multi-threaded with Rayon</pre>
+  <p><em>Note: WASM package requires COOP/COEP headers for multi-threading. See <a href="index.html">benchmark</a> for full example.</em></p>
+
+  <h3>Auto-select (@rotko/blake3-auto)</h3>
+  <pre>import { init, blake3, getBackend } from '@rotko/blake3-auto';
+
+await init();  // auto-detects best backend
+const hash = blake3(data);
+console.log(getBackend()); // 'wasm-rayon', 'wasm', or 'js'</pre>
+
+  <h3>Live Demo (@rotko/blake3-auto via CDN)</h3>
+  <p><em>This demo uses pure JS mode. When you install via npm and bundle with your app, @rotko/blake3-auto will automatically use the faster WASM backend if your server sends the required COOP/COEP headers.</em></p>
+  <input type="text" id="input" value="hello world" style="width:300px;padding:4px;">
+  <button id="hash-btn">Hash</button>
+  <pre id="output-demo" class="output">Initializing...</pre>
+
+<script type="module">
+import { blake3 } from 'https://esm.sh/@rotko/blake3@1.0.0';
+import { init, blake3 as blake3Auto, getBackend } from 'https://esm.sh/@rotko/blake3-auto@1.0.0';
+
+function toHex(arr) {
+  return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Run JS example
+document.getElementById('run-js').addEventListener('click', () => {
+  const data = new TextEncoder().encode('hello world');
+  const hash = blake3(data);
+  const hashHex = blake3.hex(data);
+  document.getElementById('output-js').textContent =
+    `Input: "hello world"\nHash (Uint8Array): [${Array.from(hash.slice(0,8)).join(', ')}...]\nHash (hex): ${hashHex}`;
+});
+
+// Live demo with auto
+const outputDemo = document.getElementById('output-demo');
+const hashBtn = document.getElementById('hash-btn');
+
+async function initDemo() {
+  try {
+    await init({ forceJS: true }); // CDN can't load WASM deps
+    const backend = getBackend();
+    outputDemo.textContent = `Backend: ${backend}\nEnter text and click Hash`;
+    hashBtn.disabled = false;
+  } catch (e) {
+    outputDemo.textContent = `Init failed: ${e.message}`;
+  }
+}
+
+hashBtn.addEventListener('click', () => {
+  const text = document.getElementById('input').value;
+  const data = new TextEncoder().encode(text);
+  const hash = blake3Auto(data);
+  outputDemo.textContent = `Backend: ${getBackend()}\nInput: "${text}"\nBlake3: ${toHex(hash)}`;
+});
+
+initDemo();
+</script>
+</body>
+</html>

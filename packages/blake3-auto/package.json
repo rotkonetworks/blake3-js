@@ -1,6 +1,6 @@
 {
   "name": "@rotko/blake3-auto",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "High-performance Blake3 hash - auto-selects WASM+Rayon or pure JS",
   "type": "module",
   "main": "./dist/index.js",

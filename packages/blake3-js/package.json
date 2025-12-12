@@ -1,6 +1,6 @@
 {
   "name": "@rotko/blake3",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "High-performance Blake3 hash for JavaScript - optimized pure JS implementation",
   "type": "module",
   "main": "./dist/index.cjs",

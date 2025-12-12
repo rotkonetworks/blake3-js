@@ -1,6 +1,6 @@
 {
   "name": "@rotko/blake3-wasm",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "High-performance Blake3 hash - Rust WASM with Rayon multi-threading",
   "type": "module",
   "main": "./dist/index.js",
